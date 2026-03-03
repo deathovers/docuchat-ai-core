@@ -8,7 +8,7 @@ rag_engine = RAGEngine()
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     try:
-        result = await rag_engine.get_answer(request.query, request.session_id)
-        return ChatResponse(**result)
+        response = await rag_engine.get_answer(request.session_id, request.query)
+        return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
