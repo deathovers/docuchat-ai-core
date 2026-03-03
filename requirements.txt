@@ -1,11 +1,12 @@
 fastapi
 uvicorn
+pydantic
+pydantic-settings
 python-multipart
 pymupdf
 langchain
 langchain-openai
-langchain-community
-chromadb
-pydantic
-pydantic-settings
+langchain-pinecone
+pinecone-client
+openai
 python-dotenv
