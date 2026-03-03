@@ -1,62 +1,79 @@
-import openai
-from typing import List, Dict
+import logging
+from typing import List
+from openai import AsyncOpenAI
 from api.core.config import settings
 from api.services.vector_store import VectorStore
-from api.models.schemas import Source
+from api.models.schemas import ChatResponse, Source
+
+logger = logging.getLogger(__name__)
 
 class RAGEngine:
     def __init__(self):
+        self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.vector_store = VectorStore()
-        self.client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
 
-    async def get_answer(self, query: str, session_id: str) -> Dict:
-        # Retrieve relevant chunks
-        results = self.vector_store.query(query, session_id, top_k=5)
-        
-        if not results:
-            return {
-                "answer": "I couldn't find any relevant information in the uploaded documents.",
-                "sources": []
-            }
+    async def get_answer(self, session_id: str, query: str) -> ChatResponse:
+        try:
+            # 1. Generate Embedding for the query
+            embed_res = await self.client.embeddings.create(
+                input=query,
+                model="text-embedding-3-small"
+            )
+            query_vector = embed_res.data[0].embedding
 
-        # Construct context
-        context_text = ""
-        sources = []
-        seen_sources = set()
+            # 2. Retrieve relevant chunks from Pinecone
+            search_results = self.vector_store.query_vectors(
+                vector=query_vector,
+                session_id=session_id,
+                top_k=5
+            )
 
-        for res in results:
-            context_text += f"\n---\nSource: {res.metadata['file_name']} (Page {res.metadata['page_number']})\nContent: {res.page_content}\n"
+            context_parts = []
+            sources = []
             
-            source_key = f"{res.metadata['file_name']}-{res.metadata['page_number']}"
-            if source_key not in seen_sources:
+            matches = search_results.get("matches", [])
+            if not matches:
+                return ChatResponse(
+                    answer="I couldn't find any relevant information in the uploaded documents to answer your question.",
+                    sources=[]
+                )
+
+            for match in matches:
+                metadata = match.get("metadata", {})
+                text = metadata.get("text", "")
+                doc_name = metadata.get("file_name", "Unknown Document")
+                page_num = metadata.get("page_number", "N/A")
+                
+                context_parts.append(f"Source: {doc_name} (Page {page_num})\nContent: {text}")
                 sources.append(Source(
-                    document=res.metadata['file_name'],
-                    page=res.metadata['page_number'],
-                    snippet=res.page_content[:200] + "..."
+                    document=doc_name,
+                    page=page_num,
+                    snippet=text[:200] + "..." if len(text) > 200 else text
                 ))
-                seen_sources.add(source_key)
 
-        # Generate response
-        system_prompt = (
-            "You are a professional assistant. Answer the user's question using ONLY the provided context. "
-            "If the answer is not in the context, state that the answer was not found. "
-            "Include citations in the format [Document Name - Page X] within your response."
-        )
-        
-        user_prompt = f"Context:\n{context_text}\n\nQuestion: {query}"
+            context_str = "\n\n---\n\n".join(context_parts)
 
-        response = self.client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0
-        )
+            # 3. Construct Prompt and Generate Answer
+            system_prompt = (
+                "You are a professional assistant. Answer the user's question using ONLY the provided context. "
+                "If the answer is not in the context, state that the answer was not found. "
+                "Include citations in the format [Document Name - Page X]."
+            )
+            user_prompt = f"Context:\n{context_str}\n\nQuestion: {query}"
 
-        answer = response.choices[0].message.content
+            response = await self.client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0
+            )
 
-        return {
-            "answer": answer,
-            "sources": sources
-        }
+            answer = response.choices[0].message.content
+
+            return ChatResponse(answer=answer, sources=sources)
+
+        except Exception as e:
+            logger.error(f"Error in RAG Engine: {str(e)}")
+            raise e
