@@ -1,13 +1,12 @@
+import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
+    PROJECT_NAME: str = "DocuChat AI"
     OPENAI_API_KEY: str
     PINECONE_API_KEY: str
-    PINECONE_INDEX_NAME: str
+    PINECONE_INDEX: str
     PINECONE_ENVIRONMENT: str = "us-east-1"
-    
-    CHUNK_SIZE: int = 1000
-    CHUNK_OVERLAP: int = 200
     
     class Config:
         env_file = ".env"
