@@ -3,7 +3,7 @@ from typing import List, Optional
 
 class Source(BaseModel):
     document: str
-    page: int
+    page: int | str
     snippet: str
 
 class ChatRequest(BaseModel):
