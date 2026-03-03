@@ -1,22 +1,12 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from api.routes import upload, chat
+from api.core.config import settings
 
-app = FastAPI(title="DocuChat AI API", version="1.0.0")
+app = FastAPI(title=settings.PROJECT_NAME)
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Include Routers
-app.include_router(upload.router, prefix="/v1", tags=["Upload"])
-app.include_router(chat.router, prefix="/v1", tags=["Chat"])
+app.include_router(upload.router, prefix="/v1", tags=["upload"])
+app.include_router(chat.router, prefix="/v1", tags=["chat"])
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to DocuChat AI API"}
+    return {"message": "DocuChat AI API is running"}
