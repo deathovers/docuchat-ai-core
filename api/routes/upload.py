@@ -9,25 +9,24 @@ ingestion_service = IngestionService()
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_documents(
-    files: List[UploadFile] = File(...),
-    session_id: str = Form(...)
+    session_id: str = Form(...),
+    files: List[UploadFile] = File(...)
 ):
-    processed_files = []
-    
-    for file in files:
-        if not file.filename.endswith(".pdf"):
-            continue
+    uploaded_files = []
+    try:
+        for file in files:
+            if not file.filename.endswith(".pdf"):
+                continue
             
-        try:
             content = await file.read()
-            pages = await ingestion_service.process_pdf(content, file.filename, session_id)
+            num_pages = await ingestion_service.process_pdf(content, file.filename, session_id)
             
-            processed_files.append(FileInfo(
+            uploaded_files.append(FileInfo(
                 id=str(uuid.uuid4()),
                 name=file.filename,
-                pages=pages
+                pages=num_pages
             ))
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error processing {file.filename}: {str(e)}")
-
-    return UploadResponse(status="success", files=processed_files)
+        
+        return UploadResponse(status="success", files=uploaded_files)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
