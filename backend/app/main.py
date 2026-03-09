@@ -1,8 +1,8 @@
 from fastapi import FastAPI
+from app.api.endpoints import chat
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import upload, chat
 
-app = FastAPI(title="DocuChat AI")
+app = FastAPI(title="DocuChat AI API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -12,9 +12,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(upload.router, prefix="/v1", tags=["upload"])
-app.include_router(chat.router, prefix="/v1", tags=["chat"])
+app.include_router(chat.router, prefix="/v1")
 
-@app.get("/")
-async def root():
-    return {"message": "DocuChat AI API is running"}
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
